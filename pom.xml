@@ -10,5 +10,7 @@
   <modules>
     <module>jerrymouse_server</module>
     <module>lxf_web_old</module>
+    <module>simple-http-server</module>
+    <module>simple-servlet-server</module>
   </modules>
 </project>

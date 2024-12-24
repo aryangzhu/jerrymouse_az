@@ -5,6 +5,9 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 
+/**
+ * web编程的前置是socket/http编程(网络编程),用来复习
+ */
 public class TCPServer {
     public static void main(String[] args) throws IOException {
         ServerSocket ss = new ServerSocket(6666); // 监听指定端口

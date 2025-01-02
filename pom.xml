@@ -12,5 +12,6 @@
     <module>lxf_web_old</module>
     <module>simple-http-server</module>
     <module>simple-servlet-server</module>
+      <module>servlet-context-support</module>
   </modules>
 </project>

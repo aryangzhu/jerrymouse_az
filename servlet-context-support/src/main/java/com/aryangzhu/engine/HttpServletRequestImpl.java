@@ -23,6 +23,44 @@ public class HttpServletRequestImpl implements HttpServletRequest {
         this.exchangeRequest = exchangeRequest;
     }
 
+
+    @Override
+    public String getMethod() {
+        return exchangeRequest.getRequestMethod();
+    }
+
+    @Override
+    public String getRequestURI() {
+        return this.exchangeRequest.getRequestURI().getPath();
+    }
+
+    @Override
+    public String getParameter(String name) {
+        String query = this.exchangeRequest.getRequestURI().getRawQuery();
+        if (query != null) {
+            Map<String, String> params = parseQuery(query);
+            return params.get(name);
+        }
+        return null;
+    }
+
+    Map<String, String> parseQuery(String query) {
+        if (query == null || query.isEmpty()) {
+            return Map.of();
+        }
+        String[] ss = Pattern.compile("\\&").split(query);
+        Map<String, String> map = new HashMap<>();
+        for (String s : ss) {
+            int n = s.indexOf('=');
+            if (n >= 1) {
+                String key = s.substring(0, n);
+                String value = s.substring(n + 1);
+                map.putIfAbsent(key, URLDecoder.decode(value, StandardCharsets.UTF_8));
+            }
+        }
+        return map;
+    }
+
     @Override
     public String getAuthType() {
         return null;
@@ -58,10 +96,6 @@ public class HttpServletRequestImpl implements HttpServletRequest {
         return 0;
     }
 
-    @Override
-    public String getMethod() {
-        return null;
-    }
 
     @Override
     public String getPathInfo() {
@@ -103,10 +137,6 @@ public class HttpServletRequestImpl implements HttpServletRequest {
         return null;
     }
 
-    @Override
-    public String getRequestURI() {
-        return null;
-    }
 
     @Override
     public StringBuffer getRequestURL() {
@@ -218,32 +248,6 @@ public class HttpServletRequestImpl implements HttpServletRequest {
         return null;
     }
 
-    @Override
-    public String getParameter(String name) {
-        String query=this.exchangeRequest.getRequestURI().getRawQuery();
-        if(query!=null){
-            Map<String, String> params = parseQuery(query);
-            return params.get(name);
-        }
-        return null;
-    }
-
-    Map<String,String> parseQuery(String query){
-        if(query==null || query.isEmpty()){
-            return Map.of();
-        }
-        String[] ss = Pattern.compile("\\&").split(query);
-        Map<String,String> map=new HashMap<>();
-       for(String s:ss){
-           int n = s.indexOf("=");
-           if(n>=1){
-               String key=s.substring(0,n);
-               String value = s.substring(n + 1);
-               map.putIfAbsent(key, URLDecoder.decode(value, StandardCharsets.UTF_8));
-           }
-       }
-        return map;
-    }
 
     @Override
     public Enumeration<String> getParameterNames() {

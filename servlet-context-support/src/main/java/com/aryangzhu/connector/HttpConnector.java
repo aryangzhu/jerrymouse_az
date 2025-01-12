@@ -2,6 +2,9 @@ package com.aryangzhu.connector;
 
 import com.aryangzhu.engine.HttpServletRequestImpl;
 import com.aryangzhu.engine.HttpServletResponseImpl;
+import com.aryangzhu.engine.ServletContextImpl;
+import com.aryangzhu.engine.servlet.HelloServlet;
+import com.aryangzhu.engine.servlet.IndexServlet;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
@@ -16,14 +19,21 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.InetSocketAddress;
+import java.time.Duration;
+import java.util.List;
 
 public class HttpConnector implements AutoCloseable, HttpHandler {
 
     final Logger logger = LoggerFactory.getLogger(getClass());
 
+    final ServletContextImpl servletContext;
     final HttpServer httpServer;
+    final Duration stopDelay = Duration.ofSeconds(5);
 
     public HttpConnector() throws IOException {
+        this.servletContext = new ServletContextImpl();
+        this.servletContext.initialize(List.of(IndexServlet.class, HelloServlet.class));
+        // start http server:
         String host = "0.0.0.0";
         int port = 8080;
         this.httpServer = HttpServer.create(new InetSocketAddress(host, port), 0, "/", this);
@@ -38,24 +48,23 @@ public class HttpConnector implements AutoCloseable, HttpHandler {
 
     @Override
     public void handle(HttpExchange exchange) throws IOException {
-        logger.info("{}: {}?{}", exchange.getRequestMethod(), exchange.getRequestURI().getPath(), exchange.getRequestURI().getRawQuery());
         var adapter = new HttpExchangeAdapter(exchange);
         var request = new HttpServletRequestImpl(adapter);
         var response = new HttpServletResponseImpl(adapter);
         // process:
         try {
-            process(request, response);
+            this.servletContext.process(request, response);
         } catch (Exception e) {
             logger.error(e.getMessage(), e);
         }
     }
 
-    void process(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        String name = request.getParameter("name");
-        String html = "<h1>Hello, " + (name == null ? "world" : name) + ".</h1>";
-        response.setContentType("text/html");
-        PrintWriter pw = response.getWriter();
-        pw.write(html);
-        pw.close();
-    }
+//    void process(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+//        String name = request.getParameter("name");
+//        String html = "<h1>Hello, " + (name == null ? "world" : name) + ".</h1>";
+//        response.setContentType("text/html");
+//        PrintWriter pw = response.getWriter();
+//        pw.write(html);
+//        pw.close();
+//    }
 }

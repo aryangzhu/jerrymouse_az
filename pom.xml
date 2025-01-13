@@ -13,5 +13,6 @@
     <module>simple-http-server</module>
     <module>simple-servlet-server</module>
       <module>servlet-context-support</module>
+      <module>filter-chain-support</module>
   </modules>
 </project>

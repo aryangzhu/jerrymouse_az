@@ -1,6 +1,8 @@
 package com.aryangzhu.utils;
 
+import jakarta.servlet.Filter;
 import jakarta.servlet.Servlet;
+import jakarta.servlet.annotation.WebFilter;
 import jakarta.servlet.annotation.WebInitParam;
 import jakarta.servlet.annotation.WebServlet;
 
@@ -20,7 +22,23 @@ public class AnnoUtils {
         return defaultNameByClass(clazz);
     }
 
+    public static String getFilterName(Class<? extends Filter> clazz){
+        WebServlet annotation = clazz.getAnnotation(WebServlet.class);
+        if(annotation!=null && !annotation.name().isEmpty()){
+            return annotation.name();
+        }
+        return defaultNameByClass(clazz);
+    }
+
     public static Map<String,String> getServletInitParams(Class<? extends Servlet> clazz){
+        WebServlet annotation = clazz.getAnnotation(WebServlet.class);
+        if(annotation==null){
+            return Map.of();
+        }
+        return initParamToMap(annotation.initParams());
+    }
+
+    public static Map<String,String> getFilterInitParams(Class<? extends Filter> clazz){
         WebServlet annotation = clazz.getAnnotation(WebServlet.class);
         if(annotation==null){
             return Map.of();
@@ -34,6 +52,14 @@ public class AnnoUtils {
             return new String[0];
         }
         return arraysToSet(annotation.value(),annotation.urlPatterns()).toArray(String[]::new );
+    }
+
+    public static String[] getFilterUrlPatterns(Class<? extends Filter> clazz) {
+        WebFilter w = clazz.getAnnotation(WebFilter.class);
+        if (w == null) {
+            return new String[0];
+        }
+        return arraysToSet(w.value(), w.urlPatterns()).toArray(String[]::new);
     }
 
 

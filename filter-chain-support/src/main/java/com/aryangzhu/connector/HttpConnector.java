@@ -3,6 +3,8 @@ package com.aryangzhu.connector;
 import com.aryangzhu.engine.HttpServletRequestImpl;
 import com.aryangzhu.engine.HttpServletResponseImpl;
 import com.aryangzhu.engine.ServletContextImpl;
+import com.aryangzhu.engine.filter.HelloFilter;
+import com.aryangzhu.engine.filter.LogFilter;
 import com.aryangzhu.engine.servlet.HelloServlet;
 import com.aryangzhu.engine.servlet.IndexServlet;
 import com.sun.net.httpserver.HttpExchange;
@@ -32,7 +34,8 @@ public class HttpConnector implements AutoCloseable, HttpHandler {
 
     public HttpConnector() throws IOException {
         this.servletContext = new ServletContextImpl();
-        this.servletContext.initialize(List.of(IndexServlet.class, HelloServlet.class));
+        this.servletContext.initServlets(List.of(IndexServlet.class, HelloServlet.class));
+        this.servletContext.initFilters(List.of(LogFilter.class, HelloFilter.class));
         // start http server:
         String host = "0.0.0.0";
         int port = 8080;

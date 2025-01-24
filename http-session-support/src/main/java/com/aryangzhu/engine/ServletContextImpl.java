@@ -1,5 +1,6 @@
 package com.aryangzhu.engine;
 
+
 import com.aryangzhu.engine.mapping.FilterMapping;
 import com.aryangzhu.engine.mapping.ServletMapping;
 import com.aryangzhu.utils.AnnoUtils;
@@ -7,12 +8,9 @@ import jakarta.servlet.*;
 import jakarta.servlet.annotation.WebFilter;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.descriptor.JspConfigDescriptor;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintWriter;
@@ -23,51 +21,20 @@ import java.util.*;
 
 public class ServletContextImpl implements ServletContext {
 
+    final Logger logger = LoggerFactory.getLogger(getClass());
 
-    final Logger logger=LoggerFactory.getLogger(getClass());
+    final SessionManager sessionManager = new SessionManager(this, 600);
 
-    final Map<String,Servlet> nameToServlets=new HashMap<>();
-    final Map<String,Filter> nameToFilters=new HashMap<>();
+    final Map<String, ServletRegistrationImpl> servletRegistrations = new HashMap<>();
+    final Map<String, FilterRegistrationImpl> filterRegistrations = new HashMap<>();
 
+    final Map<String, Servlet> nameToServlets = new HashMap<>();
+    final Map<String, Filter> nameToFilters = new HashMap<>();
 
-    final List<ServletMapping> servletMappings=new ArrayList<>();
-    final List<FilterMapping> filterMappings=new ArrayList<>();
+    final List<ServletMapping> servletMappings = new ArrayList<>();
+    final List<FilterMapping> filterMappings = new ArrayList<>();
 
-
-
-    final Map<String,ServletRegistrationImpl> servletRegistrations=new HashMap<>();
-    final Map<String,FilterRegistrationImpl> filterRegistrations=new HashMap<>();
-
-    public void initServlets(List<Class<?>> servletClass){
-        for(Class<?>c:servletClass){
-            WebServlet ws = c.getAnnotation(WebServlet.class);
-            if (ws != null) {
-                logger.info("auto register @WebServlet: {}", c.getName());
-                Class<? extends Servlet> clazz= (Class<? extends Servlet>) c;
-                ServletRegistration.Dynamic registration = this.addServlet(AnnoUtils.getServletName(clazz), clazz);
-                registration.addMapping(AnnoUtils.getServletUrlPatterns(clazz));
-                registration.setInitParameters(AnnoUtils.getServletInitParams(clazz));
-            }
-        }
-
-        for (String name : this.servletRegistrations.keySet()) {
-            var registration = this.servletRegistrations.get(name);
-            try {
-                registration.servlet.init(registration.getServletConfig());
-                this.nameToServlets.put(name, registration.servlet);
-                for (String urlPattern : registration.getMappings()) {
-                    this.servletMappings.add(new ServletMapping(urlPattern, registration.servlet));
-                }
-                registration.initialized = true;
-            } catch (ServletException e) {
-                logger.error("init servlet failed: " + name + " / " + registration.servlet.getClass().getName(), e);
-            }
-        }
-        // important: sort mappings:
-        Collections.sort(this.servletMappings);
-    }
-
-    public void initFilters(List<Class<?>> filterClasses){
+    public void initFilters(List<Class<?>> filterClasses) {
         for (Class<?> c : filterClasses) {
             WebFilter wf = c.getAnnotation(WebFilter.class);
             if (wf != null) {
@@ -96,8 +63,36 @@ public class ServletContextImpl implements ServletContext {
         }
     }
 
+    public void initServlets(List<Class<?>> servletClasses) {
+        for (Class<?> c : servletClasses) {
+            WebServlet ws = c.getAnnotation(WebServlet.class);
+            if (ws != null) {
+                logger.info("auto register @WebServlet: {}", c.getName());
+                @SuppressWarnings("unchecked")
+                Class<? extends Servlet> clazz = (Class<? extends Servlet>) c;
+                ServletRegistration.Dynamic registration = this.addServlet(AnnoUtils.getServletName(clazz), clazz);
+                registration.addMapping(AnnoUtils.getServletUrlPatterns(clazz));
+                registration.setInitParameters(AnnoUtils.getServletInitParams(clazz));
+            }
+        }
 
-    public void process(HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
+        // init servlets:
+        for (String name : this.servletRegistrations.keySet()) {
+            var registration = this.servletRegistrations.get(name);
+            try {
+                registration.servlet.init(registration.getServletConfig());
+                this.nameToServlets.put(name, registration.servlet);
+                for (String urlPattern : registration.getMappings()) {
+                    this.servletMappings.add(new ServletMapping(urlPattern, registration.servlet));
+                }
+                registration.initialized = true;
+            } catch (ServletException e) {
+                logger.error("init servlet failed: " + name + " / " + registration.servlet.getClass().getName(), e);
+            }
+        }
+    }
+
+    public void process(HttpServletRequestImpl request, HttpServletResponseImpl response) throws IOException, ServletException {
         String path = request.getRequestURI();
         // search servlet:
         Servlet servlet = null;
@@ -111,18 +106,18 @@ public class ServletContextImpl implements ServletContext {
             // 404 Not Found:
             PrintWriter pw = response.getWriter();
             pw.write("<h1>404 Not Found</h1><p>No mapping for URL: " + path + "</p>");
-            pw.close();
+            pw.flush();
+            response.cleanup();
             return;
         }
-        //servlet.service(request, response);
-        //search filter;
-        List<Filter> enableFilters=new ArrayList<>();
+        // search filter:
+        List<Filter> enabledFilters = new ArrayList<>();
         for (FilterMapping mapping : this.filterMappings) {
             if (mapping.matches(path)) {
-                enableFilters.add(mapping.filter);
+                enabledFilters.add(mapping.filter);
             }
         }
-        Filter[] filters = enableFilters.toArray(Filter[]::new);
+        Filter[] filters = enabledFilters.toArray(Filter[]::new);
         logger.atDebug().log("process {} by filter {}, servlet {}", path, Arrays.toString(filters), servlet);
         FilterChain chain = new FilterChainImpl(filters, servlet);
         try {
@@ -336,184 +331,191 @@ public class ServletContextImpl implements ServletContext {
         }
     }
 
-
-
+    @Override
+    public int getSessionTimeout() {
+        return this.sessionManager.inactiveInterval;
+    }
 
     // TODO ///////////////////////////////////////////////////////////////////
 
-
-
     @Override
-    public Set<String> getResourcePaths(String s) {
+    public Set<String> getResourcePaths(String path) {
+        // TODO Auto-generated method stub
         return null;
     }
 
     @Override
-    public URL getResource(String s) throws MalformedURLException {
+    public URL getResource(String path) throws MalformedURLException {
+        // TODO Auto-generated method stub
         return null;
     }
 
     @Override
-    public InputStream getResourceAsStream(String s) {
+    public InputStream getResourceAsStream(String path) {
+        // TODO Auto-generated method stub
         return null;
     }
 
     @Override
-    public RequestDispatcher getRequestDispatcher(String s) {
+    public RequestDispatcher getRequestDispatcher(String path) {
+        // TODO Auto-generated method stub
         return null;
     }
 
     @Override
-    public RequestDispatcher getNamedDispatcher(String s) {
+    public RequestDispatcher getNamedDispatcher(String name) {
+        // TODO Auto-generated method stub
         return null;
     }
 
     @Override
-    public void log(String s) {
+    public void log(String msg) {
+        // TODO Auto-generated method stub
+    }
+
+    @Override
+    public void log(String message, Throwable throwable) {
+        // TODO Auto-generated method stub
 
     }
 
     @Override
-    public void log(String s, Throwable throwable) {
-
-    }
-
-    @Override
-    public String getRealPath(String s) {
+    public String getRealPath(String path) {
+        // TODO Auto-generated method stub
         return null;
     }
 
     @Override
     public String getServerInfo() {
+        // TODO Auto-generated method stub
         return null;
-    }
-
-
-
-
-    @Override
-    public Object getAttribute(String s) {
-        return null;
-    }
-
-    @Override
-    public Enumeration<String> getAttributeNames() {
-        return null;
-    }
-
-    @Override
-    public void setAttribute(String s, Object o) {
-
-    }
-
-    @Override
-    public void removeAttribute(String s) {
-
     }
 
     @Override
     public String getServletContextName() {
+        // TODO Auto-generated method stub
         return null;
     }
-
-
-
-    @Override
-    public ServletRegistration.Dynamic addJspFile(String s, String s1) {
-        return null;
-    }
-
-
-
-
 
     @Override
     public SessionCookieConfig getSessionCookieConfig() {
+        // TODO Auto-generated method stub
         return null;
     }
 
     @Override
-    public void setSessionTrackingModes(Set<SessionTrackingMode> set) {
-
+    public void setSessionTrackingModes(Set<SessionTrackingMode> sessionTrackingModes) {
+        // TODO Auto-generated method stub
     }
 
     @Override
     public Set<SessionTrackingMode> getDefaultSessionTrackingModes() {
+        // TODO Auto-generated method stub
         return null;
     }
 
     @Override
     public Set<SessionTrackingMode> getEffectiveSessionTrackingModes() {
+        // TODO Auto-generated method stub
         return null;
     }
 
     @Override
-    public void addListener(String s) {
-
+    public void addListener(String className) {
+        // TODO Auto-generated method stub
     }
 
     @Override
     public <T extends EventListener> void addListener(T t) {
-
+        // TODO Auto-generated method stub
     }
 
     @Override
-    public void addListener(Class<? extends EventListener> aClass) {
-
+    public void addListener(Class<? extends EventListener> listenerClass) {
+        // TODO Auto-generated method stub
     }
 
     @Override
-    public <T extends EventListener> T createListener(Class<T> aClass) throws ServletException {
+    public <T extends EventListener> T createListener(Class<T> clazz) throws ServletException {
+        // TODO Auto-generated method stub
         return null;
     }
 
     @Override
     public JspConfigDescriptor getJspConfigDescriptor() {
+        // TODO Auto-generated method stub
         return null;
     }
 
     @Override
     public ClassLoader getClassLoader() {
+        // TODO Auto-generated method stub
         return null;
     }
 
     @Override
-    public void declareRoles(String... strings) {
-
+    public void declareRoles(String... roleNames) {
+        // TODO Auto-generated method stub
     }
 
     @Override
     public String getVirtualServerName() {
+        // TODO Auto-generated method stub
         return null;
     }
 
     @Override
-    public int getSessionTimeout() {
-        return 0;
-    }
-
-    @Override
-    public void setSessionTimeout(int i) {
-
+    public void setSessionTimeout(int sessionTimeout) {
+        // TODO Auto-generated method stub
     }
 
     @Override
     public String getRequestCharacterEncoding() {
+        // TODO Auto-generated method stub
         return null;
     }
 
     @Override
-    public void setRequestCharacterEncoding(String s) {
-
+    public void setRequestCharacterEncoding(String encoding) {
+        // TODO Auto-generated method stub
     }
 
     @Override
     public String getResponseCharacterEncoding() {
+        // TODO Auto-generated method stub
         return null;
     }
 
     @Override
-    public void setResponseCharacterEncoding(String s) {
+    public void setResponseCharacterEncoding(String encoding) {
+        // TODO Auto-generated method stub
+    }
 
+    @Override
+    public Object getAttribute(String name) {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public Enumeration<String> getAttributeNames() {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public void setAttribute(String name, Object object) {
+        // TODO Auto-generated method stub
+    }
+
+    @Override
+    public void removeAttribute(String name) {
+        // TODO Auto-generated method stub
+    }
+
+    @Override
+    public ServletRegistration.Dynamic addJspFile(String servletName, String jspFile) {
+        // TODO Auto-generated method stub
+        return null;
     }
 }

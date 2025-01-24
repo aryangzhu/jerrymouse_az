@@ -3,23 +3,17 @@ package com.aryangzhu.connector;
 import com.aryangzhu.engine.HttpServletRequestImpl;
 import com.aryangzhu.engine.HttpServletResponseImpl;
 import com.aryangzhu.engine.ServletContextImpl;
-import com.aryangzhu.engine.filter.HelloFilter;
 import com.aryangzhu.engine.filter.LogFilter;
-import com.aryangzhu.engine.servlet.HelloServlet;
 import com.aryangzhu.engine.servlet.IndexServlet;
+import com.aryangzhu.engine.servlet.LoginServlet;
+import com.aryangzhu.engine.servlet.LogoutServlet;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServlet;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.util.List;
@@ -34,8 +28,8 @@ public class HttpConnector implements AutoCloseable, HttpHandler {
 
     public HttpConnector() throws IOException {
         this.servletContext = new ServletContextImpl();
-        this.servletContext.initServlets(List.of(IndexServlet.class, HelloServlet.class));
-        this.servletContext.initFilters(List.of(LogFilter.class, HelloFilter.class));
+        this.servletContext.initServlets(List.of(IndexServlet.class, LoginServlet.class, LogoutServlet.class));
+        this.servletContext.initFilters(List.of(LogFilter.class));
         // start http server:
         String host = "0.0.0.0";
         int port = 8080;
@@ -46,14 +40,15 @@ public class HttpConnector implements AutoCloseable, HttpHandler {
 
     @Override
     public void close() {
-        this.httpServer.stop(3);
+//        this.httpServer.stop(3);
+        this.httpServer.stop((int) this.stopDelay.toSeconds());
     }
 
     @Override
     public void handle(HttpExchange exchange) throws IOException {
         var adapter = new HttpExchangeAdapter(exchange);
-        var request = new HttpServletRequestImpl(adapter);
         var response = new HttpServletResponseImpl(adapter);
+        var request = new HttpServletRequestImpl(this.servletContext,adapter,response);
         // process:
         try {
             this.servletContext.process(request, response);
@@ -62,12 +57,4 @@ public class HttpConnector implements AutoCloseable, HttpHandler {
         }
     }
 
-//    void process(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-//        String name = request.getParameter("name");
-//        String html = "<h1>Hello, " + (name == null ? "world" : name) + ".</h1>";
-//        response.setContentType("text/html");
-//        PrintWriter pw = response.getWriter();
-//        pw.write(html);
-//        pw.close();
-//    }
 }

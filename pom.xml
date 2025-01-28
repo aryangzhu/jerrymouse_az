@@ -15,5 +15,6 @@
       <module>servlet-context-support</module>
       <module>filter-chain-support</module>
       <module>http-session-support</module>
+      <module>listener-support</module>
   </modules>
 </project>

@@ -4,6 +4,7 @@ import com.aryangzhu.engine.HttpServletRequestImpl;
 import com.aryangzhu.engine.HttpServletResponseImpl;
 import com.aryangzhu.engine.ServletContextImpl;
 import com.aryangzhu.engine.filter.LogFilter;
+import com.aryangzhu.engine.listener.*;
 import com.aryangzhu.engine.servlet.IndexServlet;
 import com.aryangzhu.engine.servlet.LoginServlet;
 import com.aryangzhu.engine.servlet.LogoutServlet;
@@ -16,6 +17,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.time.Duration;
+import java.util.EventListener;
 import java.util.List;
 
 public class HttpConnector implements AutoCloseable, HttpHandler {
@@ -30,6 +32,13 @@ public class HttpConnector implements AutoCloseable, HttpHandler {
         this.servletContext = new ServletContextImpl();
         this.servletContext.initServlets(List.of(IndexServlet.class, LoginServlet.class, LogoutServlet.class));
         this.servletContext.initFilters(List.of(LogFilter.class));
+        //add listeners
+        List<Class<? extends EventListener>> listenerClasses = List.of(HelloHttpSessionAttributeListener.class, HelloHttpSessionListener.class,
+                HelloServletContextAttributeListener.class, HelloServletContextListener.class, HelloServletRequestAttributeListener.class,
+                HelloServletRequestListener.class);
+        for (Class<? extends EventListener> listenerClass : listenerClasses) {
+            this.servletContext.addListener(listenerClass);
+        }
         // start http server:
         String host = "0.0.0.0";
         int port = 8080;

@@ -2,6 +2,7 @@ package com.aryangzhu.engine;
 
 
 import com.aryangzhu.connector.HttpExchangeRequest;
+import com.aryangzhu.engine.support.Attributes;
 import com.aryangzhu.engine.support.HttpHeaders;
 import com.aryangzhu.engine.support.Parameters;
 import com.aryangzhu.utils.HttpUtils;
@@ -20,8 +21,19 @@ public class HttpServletRequestImpl implements HttpServletRequest {
     final ServletContextImpl servletContext;
     final HttpExchangeRequest exchangeRequest;
     final HttpServletResponse response;
+
+    final String method;
+
     final HttpHeaders headers;
     final Parameters parameters;
+
+    String characterEncoding;
+
+    int contentLength=0;
+
+    String requestId=null;
+
+    Attributes attributes=new Attributes();
 
     Boolean inputCalled = null;
 
@@ -29,8 +41,14 @@ public class HttpServletRequestImpl implements HttpServletRequest {
         this.servletContext = servletContext;
         this.exchangeRequest = exchangeRequest;
         this.response = response;
+
+        this.characterEncoding = "UTF-8";
+        this.method = exchangeRequest.getRequestMethod();
         this.headers = new HttpHeaders(exchangeRequest.getRequestHeaders());
-        this.parameters = new Parameters(exchangeRequest, "UTF-8");
+        this.parameters = new Parameters(exchangeRequest, this.characterEncoding);
+        if ("POST".equals(this.method) || "PUT".equals(this.method) || "DELETE".equals(this.method) || "PATCH".equals(this.method)) {
+            this.contentLength = getIntHeader("Content-Length");
+        }
     }
 
     @Override
@@ -187,18 +205,36 @@ public class HttpServletRequestImpl implements HttpServletRequest {
         return this.headers.getIntHeader(name);
     }
 
-    // not implemented yet:
+// attribute operations ///////////////////////////////////////////////////
 
     @Override
     public Object getAttribute(String name) {
-        // TODO Auto-generated method stub
-        return null;
+        return this.attributes.getAttribute(name);
     }
 
     @Override
     public Enumeration<String> getAttributeNames() {
-        // TODO Auto-generated method stub
-        return null;
+        return this.attributes.getAttributeNames();
+    }
+
+    @Override
+    public void setAttribute(String name, Object value) {
+        if (value == null) {
+            removeAttribute(name);
+        } else {
+            Object oldValue = this.attributes.setAttribute(name, value);
+            if (oldValue == null) {
+                this.servletContext.invokeServletRequestAttributeAdded(this, name, value);
+            } else {
+                this.servletContext.invokeServletRequestAttributeReplaced(this, name, value);
+            }
+        }
+    }
+
+    @Override
+    public void removeAttribute(String name) {
+        Object oldValue = this.attributes.removeAttribute(name);
+        this.servletContext.invokeServletRequestAttributeRemoved(this, name, oldValue);
     }
 
     @Override
@@ -264,16 +300,6 @@ public class HttpServletRequestImpl implements HttpServletRequest {
     public String getRemoteHost() {
         // TODO Auto-generated method stub
         return null;
-    }
-
-    @Override
-    public void setAttribute(String name, Object o) {
-        // TODO Auto-generated method stub
-    }
-
-    @Override
-    public void removeAttribute(String name) {
-        // TODO Auto-generated method stub
     }
 
     @Override

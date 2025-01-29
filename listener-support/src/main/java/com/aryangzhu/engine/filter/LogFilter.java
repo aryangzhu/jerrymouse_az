@@ -16,7 +16,7 @@ public class LogFilter implements Filter {
     @Override
     public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain) throws IOException, ServletException {
         HttpServletRequest req = (HttpServletRequest) request;
-        logger.info("{}: {}", req.getMethod(), req.getRequestURI());
+        logger.info("default filter {}: {}", req.getMethod(), req.getRequestURI());
         chain.doFilter(request, response);
     }
 }
